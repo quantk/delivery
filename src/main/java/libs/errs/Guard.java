@@ -20,6 +20,13 @@ public final class Guard {
         return null;
     }
 
+    public static Error againstNull(Object value, String paramName) {
+        if (value == null) {
+            return GeneralErrors.valueIsRequired(paramName);
+        }
+        return null;
+    }
+
     public static Error againstNullOrEmpty(String value, String paramName) {
         if (value == null || value.isBlank()) {
             return GeneralErrors.valueIsRequired(paramName);
