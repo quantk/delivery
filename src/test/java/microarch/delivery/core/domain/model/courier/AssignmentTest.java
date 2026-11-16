@@ -138,7 +138,7 @@ class AssignmentTest {
 
         // Assert
         assertThat(result.isFailure()).isTrue();
-        assertThat(result.getError().getCode()).isEqualTo("assignment.already.finished");
+        assertThat(result.getError().getCode()).isEqualTo("assignment.already.completed");
         assertThat(assignment.getStatus()).isEqualTo(AssignmentStatus.COMPLETED);
     }
 

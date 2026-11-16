@@ -56,7 +56,7 @@ public class Assignment extends BaseEntity<UUID> {
         return Result.success(new Assignment(orderId, volume, location, AssignmentStatus.ASSIGNED));
     }
 
-    public UnitResult<Error> complete(Location courierLocation) {
+    UnitResult<Error> complete(Location courierLocation) {
         var err = Guard.againstNull(courierLocation, "courier_location");
         if (err != null) {
             return UnitResult.failure(err);
