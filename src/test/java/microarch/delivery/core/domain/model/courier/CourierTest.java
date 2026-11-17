@@ -1,9 +1,10 @@
 package microarch.delivery.core.domain.model.courier;
 
+import libs.errs.Error;
+import libs.errs.UnitResult;
 import microarch.delivery.core.domain.model.Location;
 import microarch.delivery.core.domain.model.Volume;
 import microarch.delivery.core.domain.model.order.Order;
-import microarch.delivery.core.domain.model.order.OrderStatus;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.CsvSource;
@@ -28,6 +29,14 @@ class CourierTest {
 
     private static Order createOrder(int volume, Location location) {
         return Order.create(UUID.randomUUID(), location, Volume.create(volume).getValueOrThrow()).getValueOrThrow();
+    }
+
+    private static UnitResult<Error> take(Courier courier, Order order) {
+        return courier.take(order.getId(), order.getVolume(), order.getLocation());
+    }
+
+    private static Volume volume(int value) {
+        return Volume.create(value).getValueOrThrow();
     }
 
     @Test
@@ -79,7 +88,7 @@ class CourierTest {
         var courier = createCourier();
 
         // Act
-        var result = courier.isCanTake(createOrder(volume));
+        var result = courier.isCanTake(volume(volume));
 
         // Assert
         assertThat(result.isSuccess()).isTrue();
@@ -92,7 +101,7 @@ class CourierTest {
         var courier = createCourier();
 
         // Act
-        var result = courier.isCanTake(createOrder(volume));
+        var result = courier.isCanTake(volume(volume));
 
         // Assert
         assertThat(result.isFailure()).isTrue();
@@ -104,10 +113,10 @@ class CourierTest {
     void canTakeWhenTotalVolumeFitsMaxVolume(int taken, int volume) {
         // Arrange
         var courier = createCourier();
-        courier.take(createOrder(taken)).getOrElseThrow();
+        take(courier, createOrder(taken)).getOrElseThrow();
 
         // Act
-        var result = courier.isCanTake(createOrder(volume));
+        var result = courier.isCanTake(volume(volume));
 
         // Assert
         assertThat(result.isSuccess()).isTrue();
@@ -118,10 +127,10 @@ class CourierTest {
     void cannotTakeWhenTotalVolumeExceedsMaxVolume(int taken, int volume) {
         // Arrange
         var courier = createCourier();
-        courier.take(createOrder(taken)).getOrElseThrow();
+        take(courier, createOrder(taken)).getOrElseThrow();
 
         // Act
-        var result = courier.isCanTake(createOrder(volume));
+        var result = courier.isCanTake(volume(volume));
 
         // Assert
         assertThat(result.isFailure()).isTrue();
@@ -133,24 +142,24 @@ class CourierTest {
         // Arrange
         var courier = createCourier();
         var completedOrder = createOrder(20);
-        courier.take(completedOrder).getOrElseThrow();
-        courier.complete(completedOrder).getOrElseThrow();
+        take(courier, completedOrder).getOrElseThrow();
+        courier.complete(completedOrder.getId()).getOrElseThrow();
 
         // Act
-        var result = courier.isCanTake(createOrder(20));
+        var result = courier.isCanTake(volume(20));
 
         // Assert
         assertThat(result.isSuccess()).isTrue();
     }
 
     @Test
-    void cannotCheckTakeWhenOrderIsNull() {
+    void cannotCheckTakeWhenVolumeIsNull() {
         // Act
         var result = createCourier().isCanTake(null);
 
         // Assert
         assertThat(result.isFailure()).isTrue();
-        assertThat(result.getError().getMessage()).contains("order");
+        assertThat(result.getError().getMessage()).contains("volume");
     }
 
     @Test
@@ -160,7 +169,7 @@ class CourierTest {
         var order = createOrder(5);
 
         // Act
-        var result = courier.take(order);
+        var result = take(courier, order);
 
         // Assert
         assertThat(result.isSuccess()).isTrue();
@@ -176,10 +185,10 @@ class CourierTest {
     void shouldNotAddAssignmentWhenCourierIsFull() {
         // Arrange
         var courier = createCourier();
-        courier.take(createOrder(20)).getOrElseThrow();
+        take(courier, createOrder(20)).getOrElseThrow();
 
         // Act
-        var result = courier.take(createOrder(1));
+        var result = take(courier, createOrder(1));
 
         // Assert
         assertThat(result.isFailure()).isTrue();
@@ -188,59 +197,16 @@ class CourierTest {
     }
 
     @Test
-    void shouldAssignOrderOnTake() {
+    void cannotTakeWhenVolumeIsNull() {
         // Arrange
         var courier = createCourier();
-        var order = createOrder(5);
 
         // Act
-        courier.take(order).getOrElseThrow();
-
-        // Assert
-        assertThat(order.getStatus()).isEqualTo(OrderStatus.ASSIGNED);
-    }
-
-    @Test
-    void shouldNotAssignOrderWhenCourierIsFull() {
-        // Arrange
-        var courier = createCourier();
-        courier.take(createOrder(20)).getOrElseThrow();
-        var order = createOrder(1);
-
-        // Act
-        courier.take(order);
-
-        // Assert
-        assertThat(order.getStatus()).isEqualTo(OrderStatus.CREATED);
-    }
-
-    @Test
-    void cannotTakeSameOrderTwice() {
-        // Arrange
-        var courier = createCourier();
-        var order = createOrder(5);
-        courier.take(order).getOrElseThrow();
-
-        // Act
-        var result = courier.take(order);
+        var result = courier.take(UUID.randomUUID(), null, COURIER_LOCATION);
 
         // Assert
         assertThat(result.isFailure()).isTrue();
-        assertThat(result.getError().getCode()).isEqualTo("order.forbidden.status.transition");
-        assertThat(courier.getAssignments()).hasSize(1);
-    }
-
-    @Test
-    void cannotTakeWhenOrderIsNull() {
-        // Arrange
-        var courier = createCourier();
-
-        // Act
-        var result = courier.take(null);
-
-        // Assert
-        assertThat(result.isFailure()).isTrue();
-        assertThat(result.getError().getMessage()).contains("order");
+        assertThat(result.getError().getMessage()).contains("volume");
         assertThat(courier.getAssignments()).isEmpty();
     }
 
@@ -248,7 +214,7 @@ class CourierTest {
     void shouldNotExposeMutableAssignments() {
         // Arrange
         var courier = createCourier();
-        courier.take(createOrder(5)).getOrElseThrow();
+        take(courier, createOrder(5)).getOrElseThrow();
 
         // Act & Assert
         assertThat(courier.getAssignments()).isUnmodifiable();
@@ -260,10 +226,10 @@ class CourierTest {
         // Arrange
         var courier = createCourier();
         var order = createOrder(5, Location.create(x, y).getValueOrThrow());
-        courier.take(order).getOrElseThrow();
+        take(courier, order).getOrElseThrow();
 
         // Act
-        var result = courier.complete(order);
+        var result = courier.complete(order.getId());
 
         // Assert
         assertThat(result.isSuccess()).isTrue();
@@ -276,10 +242,10 @@ class CourierTest {
         // Arrange
         var courier = createCourier();
         var order = createOrder(5, Location.create(x, y).getValueOrThrow());
-        courier.take(order).getOrElseThrow();
+        take(courier, order).getOrElseThrow();
 
         // Act
-        var result = courier.complete(order);
+        var result = courier.complete(order.getId());
 
         // Assert
         assertThat(result.isFailure()).isTrue();
@@ -293,11 +259,11 @@ class CourierTest {
         var courier = createCourier();
         var order1 = createOrder(5);
         var order2 = createOrder(5);
-        courier.take(order1).getOrElseThrow();
-        courier.take(order2).getOrElseThrow();
+        take(courier, order1).getOrElseThrow();
+        take(courier, order2).getOrElseThrow();
 
         // Act
-        var result = courier.complete(order2);
+        var result = courier.complete(order2.getId());
 
         // Assert
         assertThat(result.isSuccess()).isTrue();
@@ -310,10 +276,10 @@ class CourierTest {
     void cannotCompleteWhenOrderIsNotAssigned() {
         // Arrange
         var courier = createCourier();
-        courier.take(createOrder(5)).getOrElseThrow();
+        take(courier, createOrder(5)).getOrElseThrow();
 
         // Act
-        var result = courier.complete(createOrder(5));
+        var result = courier.complete(UUID.randomUUID());
 
         // Assert
         assertThat(result.isFailure()).isTrue();
@@ -325,11 +291,11 @@ class CourierTest {
         // Arrange
         var courier = createCourier();
         var order = createOrder(5);
-        courier.take(order).getOrElseThrow();
-        courier.complete(order).getOrElseThrow();
+        take(courier, order).getOrElseThrow();
+        courier.complete(order.getId()).getOrElseThrow();
 
         // Act
-        var result = courier.complete(order);
+        var result = courier.complete(order.getId());
 
         // Assert
         assertThat(result.isFailure()).isTrue();
@@ -337,13 +303,13 @@ class CourierTest {
     }
 
     @Test
-    void cannotCompleteWhenOrderIsNull() {
+    void cannotCompleteWhenOrderIdIsNull() {
         // Act
         var result = createCourier().complete(null);
 
         // Assert
         assertThat(result.isFailure()).isTrue();
-        assertThat(result.getError().getMessage()).contains("order");
+        assertThat(result.getError().getMessage()).contains("order_id");
     }
 
     @ParameterizedTest(name = "to ({0},{1})")

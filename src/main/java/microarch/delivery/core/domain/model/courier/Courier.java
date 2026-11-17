@@ -11,7 +11,6 @@ import lombok.Getter;
 import lombok.NoArgsConstructor;
 import microarch.delivery.core.domain.model.Location;
 import microarch.delivery.core.domain.model.Volume;
-import microarch.delivery.core.domain.model.order.Order;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -62,33 +61,28 @@ public class Courier extends Aggregate<UUID> {
         return Result.success(new Courier(name, location, defaultCourierMaxVolume, new ArrayList<>()));
     }
 
-    public UnitResult<Error> isCanTake(Order order) {
-        var nullErr = Guard.againstNull(order, "order");
+    public UnitResult<Error> isCanTake(Volume volume) {
+        var nullErr = Guard.againstNull(volume, "volume");
         if (nullErr != null) {
             return UnitResult.failure(nullErr);
         }
 
-        if (this.getTotalVolumeWith(order.getVolume()).isGreaterThan(this.getMaxVolume())) {
+        if (this.getTotalVolumeWith(volume).isGreaterThan(this.getMaxVolume())) {
             return UnitResult.failure(Errors.courierIsFull());
         }
 
         return UnitResult.success();
     }
 
-    public UnitResult<Error> take(Order order) {
-        var canTake = this.isCanTake(order);
+    public UnitResult<Error> take(UUID orderId, Volume volume, Location orderLocation) {
+        var canTake = this.isCanTake(volume);
         if (canTake.isFailure()) {
             return canTake;
         }
 
-        var newAssignment = Assignment.create(order.getId(), order.getVolume(), order.getLocation());
+        var newAssignment = Assignment.create(orderId, volume, orderLocation);
         if (newAssignment.isFailure()) {
             return UnitResult.failure(newAssignment.getError());
-        }
-
-        var assigned = order.assign();
-        if (assigned.isFailure()) {
-            return assigned;
         }
 
         this.assignments.add(newAssignment.getValue());
@@ -96,25 +90,19 @@ public class Courier extends Aggregate<UUID> {
         return UnitResult.success();
     }
 
-    public UnitResult<Error> complete(Order order) {
-        var nullErr = Guard.againstNull(order, "order");
+    public UnitResult<Error> complete(UUID orderId) {
+        var nullErr = Guard.againstNull(orderId, "order_id");
         if (nullErr != null) {
             return UnitResult.failure(nullErr);
         }
 
-        var assignment = this.assignments.stream().filter(a -> a.getOrderId().equals(order.getId())).findFirst();
+        var assignment = this.assignments.stream().filter(a -> a.getOrderId().equals(orderId)).findFirst();
 
         if (assignment.isEmpty()) {
-            return UnitResult.failure(Errors.assignmentForOrderNotFound(order.getId()));
+            return UnitResult.failure(Errors.assignmentForOrderNotFound(orderId));
         }
 
-        var err = assignment.get().complete(this.location);
-
-        if (err.isFailure()) {
-            return err;
-        }
-
-        return UnitResult.success();
+        return assignment.get().complete(this.location);
     }
 
     public UnitResult<Error> move(Location newLocation) {
