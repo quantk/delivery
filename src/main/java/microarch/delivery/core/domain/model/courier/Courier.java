@@ -68,7 +68,7 @@ public class Courier extends Aggregate<UUID> {
             return UnitResult.failure(nullErr);
         }
 
-        if ((this.getActiveAssignedVolume() + order.getVolume().getValue()) > this.getMaxVolume().getValue()) {
+        if (this.getTotalVolumeWith(order.getVolume()).isGreaterThan(this.getMaxVolume())) {
             return UnitResult.failure(Errors.courierIsFull());
         }
 
@@ -132,9 +132,9 @@ public class Courier extends Aggregate<UUID> {
         return UnitResult.success();
     }
 
-    private int getActiveAssignedVolume() {
+    private Volume getTotalVolumeWith(Volume extra) {
         return this.assignments.stream().filter(assignment -> !assignment.getStatus().isCompleted())
-                .map(assignment -> assignment.getVolume().getValue()).reduce(0, Integer::sum);
+                .map(Assignment::getVolume).reduce(extra, Volume::add);
     }
 
     public static final class Errors {
