@@ -31,6 +31,14 @@ public class Volume extends ValueObject<Volume> {
         return Result.success(new Volume(value));
     }
 
+    public Volume add(Volume volume) {
+        return Volume.create(volume.value + this.value).getValue();
+    }
+
+    public boolean isGreaterThan(Volume other) {
+        return this.value > other.value;
+    }
+
     @Override
     protected Iterable<Object> equalityComponents() {
         return List.of(this.value);
